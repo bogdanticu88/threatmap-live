@@ -17,13 +17,13 @@ from threatmap_live.store import load_records
 
 _ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets")
 _DEFAULT_LOGO = os.path.join(_ASSET_DIR, "nn-logo.jpg")
+_WORDMARK = os.path.join(_ASSET_DIR, "threatmap-live-logo.png")
 
 
-def _logo_data_uri(logo_path: Optional[str]) -> str:
-    path = logo_path or _DEFAULT_LOGO
+def _data_uri(path: str, mime: str) -> str:
     with open(path, "rb") as fh:
         b64 = base64.b64encode(fh.read()).decode("ascii")
-    return f"data:image/jpeg;base64,{b64}"
+    return f"data:{mime};base64,{b64}"
 
 
 def build_viewer(store_dir: str, output_path: Optional[str] = None, logo_path: Optional[str] = None) -> str:
@@ -32,7 +32,8 @@ def build_viewer(store_dir: str, output_path: Optional[str] = None, logo_path: O
     data_json = json.dumps(records).replace("</", "<\\/")
     html = (
         _TEMPLATE
-        .replace("__LOGO__", _logo_data_uri(logo_path))
+        .replace("__LOGO__", _data_uri(logo_path or _DEFAULT_LOGO, "image/jpeg"))
+        .replace("__WORDMARK__", _data_uri(_WORDMARK, "image/png"))
         .replace("__DATA__", data_json)
     )
     if output_path:
@@ -69,10 +70,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     background:var(--panel); border-bottom:1px solid var(--border);
     display:flex; align-items:center; gap:16px; padding:14px 24px;
   }
-  header.app img.logo { height:42px; width:auto; display:block; }
-  header.app .titles { display:flex; flex-direction:column; }
-  header.app .titles .product { font-weight:700; font-size:18px; letter-spacing:.2px; }
-  header.app .titles .sub { color:var(--muted); font-size:12.5px; }
+  header.app img.logo { height:46px; width:auto; display:block; }
+  header.app img.wordmark { height:40px; width:auto; display:block; background:#0F1523; border-radius:8px; padding:5px 12px; }
   header.app .spacer { flex:1; }
   header.app .badge {
     font-size:12px; color:#fff; background:var(--nn-grad);
@@ -148,10 +147,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <body>
 <header class="app">
   <img class="logo" src="__LOGO__" alt="NN">
-  <div class="titles">
-    <span class="product">threatmap-live</span>
-    <span class="sub">Live cloud threat model — NN</span>
-  </div>
+  <img class="wordmark" src="__WORDMARK__" alt="threatmap-live">
   <div class="spacer"></div>
   <div class="badge">Security &amp; Risk</div>
 </header>
