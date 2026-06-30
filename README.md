@@ -85,6 +85,29 @@ aws sso login            # or your usual AWS auth
 threatmap-live scan-live --provider aws --region eu-west-1
 ```
 
+## Viewer dashboard
+
+A read-only, **NN-branded** dashboard for non-technical consumers. The CLI (operator
+door) writes scans into a store folder; the viewer (consumer door) renders them. They
+never talk to each other — they only share the store.
+
+```bash
+# 1. Operators run scans into the store
+threatmap-live scan-live --provider azure --subscription <sub> --store store/
+threatmap-live scan-live --provider aws --region eu-west-1 --store store/
+
+# 2. Build the self-contained dashboard
+threatmap-live build-viewer --store store/ -o viewer/index.html
+
+# 3. Open viewer/index.html in any browser (double-click — no server needed)
+```
+
+The generated `index.html` is fully self-contained: scan data and the NN logo are
+inlined, so it works offline on `file://` with no server, no Node, and no network
+calls. It lists scans newest-first with severity counts, and drills into any scan with
+severity summary cards, a filterable/searchable findings table, and per-finding
+mitigations. `store/` and `viewer/` are generated artifacts (git-ignored).
+
 ## Development
 
 ```bash

@@ -16,7 +16,7 @@ from rich.console import Console
 from threatmap.analyzers import engine
 from threatmap.reporters import html_reporter, json_reporter, markdown, sarif_reporter
 
-from threatmap_live import __version__
+from threatmap_live import __version__, store, viewer
 from threatmap_live.live.aws import AwsCollector
 from threatmap_live.live.azure import AzureCollector
 from threatmap_live.live.base import BaseCollector, CollectorError
@@ -65,9 +65,11 @@ def cli() -> None:
 @click.option("--framework", type=click.Choice(["stride", "mitre", "pasta"]), default="stride", show_default=True)
 @click.option("--format", "output_format", type=click.Choice(list(_REPORTERS)), default="markdown", show_default=True)
 @click.option("--output", "-o", type=click.Path(), default=None, help="Write the report to this file (default: stdout).")
+@click.option("--store", "store_dir", type=click.Path(), default=None,
+              help="Also write this scan into a store folder for the viewer dashboard.")
 @click.option("--fail-on", type=click.Choice(["CRITICAL", "HIGH", "MEDIUM"]), default=None,
               help="Exit 1 if any threat at or above this severity is found (CI gate).")
-def scan_live(provider, subscription, resource_group, profile, region, framework, output_format, output, fail_on):
+def scan_live(provider, subscription, resource_group, profile, region, framework, output_format, output, store_dir, fail_on):
     """Collect live cloud resources and produce a threat model report."""
     collector = _build_collector(provider, subscription, resource_group, profile, region)
 
@@ -106,8 +108,12 @@ def scan_live(provider, subscription, resource_group, profile, region, framework
         with open(output, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(report)
         _err.print(f"Report written to [bold]{output}[/bold]")
-    else:
+    elif not store_dir:
         click.echo(report)
+
+    if store_dir:
+        path = store.write_scan(store_dir, provider, scope, framework, resources, threats)
+        _err.print(f"Scan stored at [bold]{path}[/bold]  ([dim]rebuild the viewer to see it[/dim])")
 
     if fail_on:
         threshold = _SEVERITY_ORDER.index(fail_on)
@@ -116,6 +122,23 @@ def scan_live(provider, subscription, resource_group, profile, region, framework
             sys.exit(1)
 
     sys.exit(0)
+
+
+@cli.command("build-viewer")
+@click.option("--store", "store_dir", type=click.Path(), default="store", show_default=True,
+              help="Store folder to read scans from.")
+@click.option("--output", "-o", type=click.Path(), default="viewer/index.html", show_default=True,
+              help="Where to write the self-contained dashboard HTML.")
+@click.option("--logo", type=click.Path(exists=True), default=None,
+              help="Override the bundled NN logo (path to an image).")
+def build_viewer_cmd(store_dir, output, logo):
+    """Render the scan store into a self-contained, NN-branded HTML dashboard."""
+    records = store.load_records(store_dir)
+    viewer.build_viewer(store_dir, output_path=output, logo_path=logo)
+    _err.print(
+        f"Viewer written to [bold]{output}[/bold] ([dim]{len(records)} scan(s)[/dim]). "
+        f"Open it in any browser."
+    )
 
 
 def main() -> None:
