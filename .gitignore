@@ -22,6 +22,10 @@ htmlcov/
 *.report.html
 out/
 
+# Generated scan store + viewer output (artifacts, not source)
+store/
+viewer/
+
 # Editor
 .vscode/
 .idea/

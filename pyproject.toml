@@ -32,5 +32,8 @@ threatmap-live = "threatmap_live.cli:main"
 include = ["threatmap_live*"]
 exclude = ["tests*"]
 
+[tool.setuptools.package-data]
+threatmap_live = ["assets/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
