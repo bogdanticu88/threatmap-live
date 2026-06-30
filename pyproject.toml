@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "threatmap-live"
+version = "0.1.0"
+description = "Live cloud threat modeling on top of threatmap: collects deployed Azure/AWS resources via the cloud CLIs (under your own SSO session) and runs them through threatmap's STRIDE/MITRE/PASTA engine."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Bogdan Ticu" }]
+
+dependencies = [
+    # Pinned to the reviewed threatmap commit so the engine/reporters are reproducible.
+    # In a restricted-network environment, vendor the wheel and install from there instead.
+    "threatmap @ git+https://github.com/bogdanticu88/threatmap.git@ad52e6c330bc47aaae4ce1692211916c7767ded6",
+    "click>=8.1.0,<9.0",
+    "rich>=13.0.0,<15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0,<9.0",
+]
+
+[project.scripts]
+threatmap-live = "threatmap_live.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["threatmap_live*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs (kept out of OneDrive sync churn)
+.venv/
+venv/
+env/
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Reports produced by scans
+*.report.md
+*.report.json
+*.report.html
+out/
+
+# Editor
+.vscode/
+.idea/
+*.swp
