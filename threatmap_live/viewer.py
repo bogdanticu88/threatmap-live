@@ -187,6 +187,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .expand td{ background:var(--panel-2); }
   .expand .k{ font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:3px; }
   .legend-row{ display:flex; gap:16px; margin-top:8px; font-size:12px; color:var(--muted); }
+  .changestats{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:8px; }
+  .chg{ border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .chg .n{ font-size:23px; font-weight:800; line-height:1; }
+  .chg .l{ font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-top:5px; }
+  .chg-h{ font-weight:700; font-size:13.5px; margin:18px 0 8px; display:flex; align-items:center; gap:8px; }
+  .chg-h .dot{ width:9px; height:9px; border-radius:50%; }
   .empty{ color:var(--muted); text-align:center; padding:54px 20px; }
   @media (max-width:1080px){ .overview,.charts{ grid-template-columns:1fr; } .kpis{ grid-template-columns:repeat(2,1fr);} }
   @media (max-width:860px){ .layout{ grid-template-columns:1fr; } aside{ position:static; max-height:none; border-bottom:1px solid var(--border);} }
@@ -307,6 +313,51 @@ _TEMPLATE = r"""<!DOCTYPE html>
       (extra>0?'<div class="micro" style="margin-top:6px">+ '+extra+' more entry point(s)</div>':'');
   }
 
+  /* ----------------------------------------------------------- diff vs previous */
+  function prevRecord(){ var r=rec();
+    var earlier=DATA.filter(function(x){return x.provider===r.provider && x.scope===r.scope && (x.generated||'')<(r.generated||'');});
+    earlier.sort(function(a,b){return (a.generated||'')<(b.generated||'')?1:-1;});
+    return earlier[0]||null;
+  }
+  function fkey(t){ return [t.resource_type,t.resource_name,(t.trigger_property||t.description||''),t.stride_category].join('¦'); }
+  function diffPrev(){
+    var cur=rec(), prev=prevRecord();
+    if(!prev) return {prev:null};
+    var pmap={}, cmap={};
+    (prev.threats||[]).forEach(function(t){ pmap[fkey(t)]=t; });
+    (cur.threats||[]).forEach(function(t){ cmap[fkey(t)]=t; });
+    var added=[], resolved=[], changed=[], same=0;
+    Object.keys(cmap).forEach(function(k){ if(!(k in pmap)) added.push(cmap[k]);
+      else if(cmap[k].severity!==pmap[k].severity) changed.push({t:cmap[k],from:pmap[k].severity,to:cmap[k].severity}); else same++; });
+    Object.keys(pmap).forEach(function(k){ if(!(k in cmap)) resolved.push(pmap[k]); });
+    added.sort(function(a,b){return RANK[a.severity]-RANK[b.severity];});
+    resolved.sort(function(a,b){return RANK[a.severity]-RANK[b.severity];});
+    return {prev:prev, added:added, resolved:resolved, changed:changed, same:same};
+  }
+  function chgCard(l,n,c){ return '<div class="chg"><div class="n" style="color:'+c+'">'+n+'</div><div class="l">'+l+'</div></div>'; }
+  function chgSection(title,color,body){ return '<div class="chg-h"><span class="dot" style="background:'+color+'"></span>'+title+'</div><table><tbody>'+body+'</tbody></table>'; }
+  function chgRows(items, changes, resolved){
+    return items.map(function(t,i){
+      var extra = changes ? ' <b style="color:var(--med)">'+esc(changes[i].from)+' → '+esc(changes[i].to)+'</b>' : '';
+      var nm = resolved ? '<span style="text-decoration:line-through;opacity:.65">'+esc(t.resource_name)+'</span>' : esc(t.resource_name);
+      return '<tr><td style="width:96px"><span class="sev sv-'+(CLS[t.severity]||'info')+'">'+esc(t.severity)+'</span></td>'+
+        '<td class="mono" style="width:210px">'+nm+'<br><span style="color:var(--muted)">'+esc(t.resource_type)+'</span></td>'+
+        '<td>'+esc(t.description)+extra+'</td></tr>';
+    }).join('');
+  }
+  function renderChanges(){
+    var d=diffPrev();
+    if(!d.prev) return '<div class="empty">No earlier scan of this scope to compare against.<br>Changes appear once a second scan is stored.</div>';
+    var out='<div class="micro" style="margin:2px 0 12px">Comparing against previous scan · '+esc(date(d.prev.generated))+'</div>'+
+      '<div class="changestats">'+chgCard('New',d.added.length,'var(--crit)')+chgCard('Resolved',d.resolved.length,'var(--low)')+
+      chgCard('Severity changed',d.changed.length,'var(--med)')+chgCard('Unchanged',d.same,'var(--muted)')+'</div>';
+    if(d.added.length) out+=chgSection('New findings','var(--crit)', chgRows(d.added));
+    if(d.changed.length) out+=chgSection('Severity changed','var(--med)', chgRows(d.changed.map(function(c){return c.t;}), d.changed));
+    if(d.resolved.length) out+=chgSection('Resolved findings','var(--low)', chgRows(d.resolved,null,true));
+    if(!d.added.length && !d.changed.length && !d.resolved.length) out+='<div class="empty">No changes since the previous scan. ✅</div>';
+    return out;
+  }
+
   /* ----------------------------------------------------------- sidebar */
   function renderList(){
     var el=document.getElementById('scan-list');
@@ -343,7 +394,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     var resPublic=(r.resources||[]).filter(function(x){return x.exposure==='public';}).length;
     var strideStats=STRIDE.map(function(k){return [k,byKey(all,'stride_category')[k]||0];}).filter(function(p){return p[1]>0;}).sort(function(a,b){return b[1]-a[1];});
     var tc=byKey(all,'resource_type'), typeStats=Object.keys(tc).map(function(k){return [k,tc[k]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
-    var series=trendSeries(), exposed=exposedEntries();
+    var series=trendSeries(), exposed=exposedEntries(), dd=diffPrev();
 
     var legend=SEV.map(function(sev){return '<div class="it'+(st.sev[sev]?'':' off')+'" data-sev="'+sev+'"><span class="sw" style="background:'+COL[sev]+'"></span>'+sev.charAt(0)+sev.slice(1).toLowerCase()+'<span class="v">'+(cAll[sev]||0)+'</span></div>';}).join('');
     var kpis=[['Total',tot,'var(--nn-deep)','Total'],['CRITICAL',cAll.CRITICAL||0,COL.CRITICAL,'Critical'],['HIGH',cAll.HIGH||0,COL.HIGH,'High'],['MEDIUM',cAll.MEDIUM||0,COL.MEDIUM,'Medium'],['LOW',cAll.LOW||0,COL.LOW,'Low']]
@@ -361,7 +412,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
           '<div style="margin-top:13px;display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)">'+
             '<span>Internet entry points <b style="color:var(--crit)">'+exposed.length+'</b></span>'+
             '<span>Public-facing resources <b style="color:var(--crit)">'+resPublic+'</b></span>'+
-            '<span>Top category <b style="color:var(--ink)">'+(strideStats[0]?esc(strideStats[0][0]):'—')+'</b></span></div></div></div>'+
+            '<span>Top category <b style="color:var(--ink)">'+(strideStats[0]?esc(strideStats[0][0]):'—')+'</b></span>'+
+            (dd.prev?'<span>&#916; vs last scan <b style="color:var(--crit)">+'+dd.added.length+'</b> / <b style="color:var(--low)">&#8722;'+dd.resolved.length+'</b></span>':'')+'</div></div></div>'+
       '</div>'+
 
       '<div class="grid charts">'+
@@ -375,6 +427,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 
       '<div class="panel"><div class="pb"><div class="tabs">'+
         '<div class="tab'+(st.tab==='findings'?' on':'')+'" data-tab="findings">Findings <span class="mono" style="color:var(--faint)">'+tot+'</span></div>'+
+        '<div class="tab'+(st.tab==='changes'?' on':'')+'" data-tab="changes">Changes'+(dd.prev?' <span class="mono" style="color:var(--faint)">'+(dd.added.length+dd.resolved.length+dd.changed.length)+'</span>':'')+'</div>'+
         '<div class="tab'+(st.tab==='attack'?' on':'')+'" data-tab="attack">Attack surface <span class="mono" style="color:var(--faint)">'+exposed.length+'</span></div>'+
         '<div class="tab'+(st.tab==='resources'?' on':'')+'" data-tab="resources">Resources <span class="mono" style="color:var(--faint)">'+(r.resources||[]).length+'</span></div>'+
       '</div><div id="tabbody">'+renderRows(exposed)+'</div></div></div>';
@@ -384,6 +437,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
 
   function renderRows(exposed){
     if(st.tab==='resources') return renderResources();
+    if(st.tab==='changes') return renderChanges();
     if(st.tab==='attack') return '<div class="micro" style="margin:2px 0 12px">'+exposed.length+' internet-facing entry point(s) derived from current findings</div>'+attackSVG(exposed);
     var ts=visibleThreats();
     var car=function(c){return st.sort.c===c?' <span class="ca">'+(st.sort.d>0?'▲':'▼')+'</span>':'';};
