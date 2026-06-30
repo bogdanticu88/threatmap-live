@@ -4,8 +4,9 @@ import json
 from click.testing import CliRunner
 
 from threatmap_live import cli as cli_mod
+from threatmap_live.live.aws import AwsCollector
 from threatmap_live.live.azure import AzureCollector
-from tests.conftest import fake_az_runner
+from tests.conftest import fake_aws_runner, fake_az_runner
 
 
 def _patch_collector(monkeypatch):
@@ -16,6 +17,12 @@ def _patch_collector(monkeypatch):
             runner=fake_az_runner,
         )
     monkeypatch.setattr(cli_mod, "AzureCollector", make)
+
+
+def _patch_aws_collector(monkeypatch):
+    def make(**kwargs):
+        return AwsCollector(profile=kwargs.get("profile"), region=kwargs.get("region"), runner=fake_aws_runner)
+    monkeypatch.setattr(cli_mod, "AwsCollector", make)
 
 
 def test_scan_live_markdown_to_stdout(monkeypatch):
@@ -49,7 +56,9 @@ def test_fail_on_critical_exits_1(monkeypatch):
     assert result.exit_code == 1
 
 
-def test_aws_provider_reports_not_implemented():
-    result = CliRunner().invoke(cli_mod.cli, ["scan-live", "--provider", "aws"])
-    assert result.exit_code == 2
-    assert "not implemented" in result.output.lower()
+def test_scan_live_aws_markdown_to_stdout(monkeypatch):
+    _patch_aws_collector(monkeypatch)
+    result = CliRunner().invoke(cli_mod.cli, ["scan-live", "--provider", "aws", "--region", "us-east-1"])
+    assert result.exit_code == 0
+    assert "Threat Model Report" in result.output
+    assert "exposes SSH/RDP" in result.output

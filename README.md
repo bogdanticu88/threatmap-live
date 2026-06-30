@@ -68,13 +68,22 @@ threatmap-live scan-live --provider azure --format json -o report.json
 threatmap-live scan-live --provider azure --fail-on CRITICAL
 ```
 
-### Coverage (Azure, slice 1)
+### Coverage
 
-Read-only `az ... list` for: storage accounts, key vaults, network security groups,
-role assignments, container registries, SQL servers, AKS clusters, web apps, and Linux
-VMs — mapped onto threatmap's existing `AZ-001`…`AZ-019` rules.
+**Azure** — read-only `az ... list` for: storage accounts, key vaults, network
+security groups, role assignments, container registries, SQL servers, AKS clusters,
+web apps, and Linux VMs → threatmap's `AZ-001`…`AZ-019` rules.
 
-AWS is the next collector to land (`--provider aws` currently reports not-implemented).
+**AWS** — read-only `aws ... describe/list` for: security groups, RDS instances, EC2
+instances, CloudTrail, Lambda, IAM roles, S3 buckets, EKS clusters, and KMS keys →
+threatmap's `AWS-001`…`AWS-023` rules. (Some services use a list call plus best-effort
+per-item enrichment — S3 bucket settings, EKS describe-cluster, KMS rotation status,
+EC2 root-volume encryption.)
+
+```bash
+aws sso login            # or your usual AWS auth
+threatmap-live scan-live --provider aws --region eu-west-1
+```
 
 ## Development
 
